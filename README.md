@@ -52,9 +52,9 @@
 进阶（可选命令行）：
 
 ```powershell
-bin\seed.exe       -config config.yaml                                   # 仅初始化数据库
-bin\gameserver.exe -config config.yaml                                   # 单独运行某进程
-bin\gateway.exe    -config config.yaml                                   # 单独运行网关
+bin\seed.exe       -config config.yaml
+bin\gameserver.exe -config config.yaml
+bin\gateway.exe    -config config.yaml
 ```
 
 ## 架构
@@ -83,80 +83,74 @@ bin\gateway.exe    -config config.yaml                                   # 单�
 └─────────────────────────────────────────┘
 ```
 
-- **gateway**：客户端唯一入口。持有 RC4 会话加密（密码流跨帧连续）、先 ACK
-  后转发、传输保活、断线重连接管。
-- **gameserver**：游戏逻辑。命令分发、推送守卫（形状不符拒发）、钓鱼闭环、
-  物品/商店/邮箱/技能；管理指令经共享 SQLite 队列消费。
-- **launcher / admin**：统一运行控制与 Control Deck 管理后台（JWT + 内嵌
-  SPA，无外部依赖）。管理 handler 直接挂载在 9500 的 `/admin/`，不再单独
-  监听 8080。功能包括玩家档案/货币/等级/技能熟练度、背包与护网增删、商店
-  库存覆盖、分水域鱼口控制、多附件邮件、踢人/封禁与全操作审计。
+- **gateway**：客户端唯一入口。持有 RC4 会话加密（密码流跨帧连续）、先 ACK 后转发、传输保活、断线重连接管。
+- **gameserver**：游戏逻辑。命令分发、推送守卫、钓鱼闭环、物品/商店/邮箱/技能；管理指令经共享 SQLite 队列消费。
+- **launcher / admin**：统一运行控制与 Control Deck 管理后台（JWT + 内嵌 SPA，无外部依赖）。管理 handler 直接挂载在 9500 的 `/admin/`。
 
 ## 客户端接入准备
 
 - **适用客户端版本：4.0.25034**；其他版本尚未验证。
-- **修改 hosts 把登录域名指向本机**（需管理员权限）：
-  编辑 `%SystemRoot%\System32\drivers\etc\hosts`，追加以下内容后保存：
+- **修改 hosts 把登录域名指向本机**（需管理员权限），添加：
   ```text
   127.0.0.1 api.rf4game.ru
   127.0.0.1 api.rf4game.com
   ```
-- **信任本地证书**：首次运行 gateway 会自动生成自签名证书 `certs/server.crt`，
-  双击安装到“受信任的根证书颁发机构”（客户端登录走 HTTPS，需要信任它）。
+- 首次运行 gateway 会自动生成自签名证书 `certs/server.crt`；仅在本地测试环境中信任该证书。
 - 测完想回官服：把 hosts 里添加的行删掉即可。
 
-更完整的部署与客户端接入步骤见 [部署指南](docs/deploy.md)。
+## 从源码运行或自行编译
 
-## 从源码运行或自行编译（可选）
-
-如果你下载的是源码版本，或者希望自行编译，请先安装 Go 1.27.3 或更高版本。完整的构建、配置、启动、客户端接入与故障排查步骤见 [部署指南](docs/deploy.md)；其中也提供了可交给 Codex、Dsh、豆包、WorkBuddy 等智能体使用的部署 prompt。只玩 Release 版本时不需要安装 Go。操作前建议备份 hosts，并且不要上传或分享 `config.yaml`、`certs/`、`data/`。
-
-## 构建
+需要 Go 1.27.3 或更高版本。
 
 ```powershell
-# Windows（PowerShell）
-powershell -File build.ps1          # 产物在 bin/
-
-# 或 make（Git Bash / Linux）
-make build
+powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
-依赖 Go 1.27.3+，纯 Go 依赖（SQLite 驱动为 modernc.org/sqlite，无 CGO）。
+Windows 构建产物在 `bin/`。Linux 容器构建见下方 Docker 部署文档。
+
+## Docker 部署（新增）
+
+已提供 Linux 容器构建文件和 Docker Compose 配置，适用于 VPS / NAS 的受控网络测试：
+
+```bash
+git clone -b docker/deploy https://github.com/CatTreeStreet/rf4_server_simulator.git
+cd rf4_server_simulator
+cp config.example.yaml config.yaml
+# 编辑 config.yaml：替换密钥/密码，并设置客户端可访问的 gateway.advertise_host
+docker compose up -d --build
+docker compose logs -f rf4-server
+```
+
+默认映射 TCP 443（登录）和 TCP 9341（实时连接）。数据库与 TLS 证书使用 Docker 命名卷持久化。Docker 版本运行 seed、gameserver、gateway，不包含 Windows 托盘 launcher 和 9500 控制中心。请先阅读 [Docker 部署与安全说明](docs/docker.md)。
 
 ## 配置
 
-- `config.example.yaml`：模板（入库）
-- `config.yaml`：实际配置（**不入库**，从模板复制后修改）
-- 静态库：`sqlite.static_path`（默认 `server_data/static.sqlite3`），运行期只读 ATTACH
-- 游戏启动路径保存在 `launcher.game_path`，默认区域参数为 `launcher.game_region: CN`
-- 环境变量覆盖：`RF4_SQLITE_PATH`、`RF4_SQLITE_STATIC_PATH`、`RF4_LOG_LEVEL`、`RF4_GAME_CLIENT_PATH` 等（见 `internal/config`）
+- `config.example.yaml`：模板；复制为 `config.yaml` 后修改，实际配置不会入库。
+- 静态库：`sqlite.static_path`（默认 `server_data/static.sqlite3`）。
+- 环境变量覆盖：`RF4_SQLITE_PATH`、`RF4_SQLITE_STATIC_PATH`、`RF4_LOG_LEVEL`、`RF4_GAME_CLIENT_PATH` 等（见 `internal/config`）。
 
 ## 运行
 
 ```powershell
-bin\seed.exe       -config config.yaml   # 初始化本地数据库（幂等，仓库自带静态配置库）
+bin\seed.exe       -config config.yaml
 bin\gameserver.exe -config config.yaml
 bin\gateway.exe    -config config.yaml
 ```
 
-详细步骤、管理后台说明、协议约束与故障排查见 [docs/deploy.md](docs/deploy.md)。
-
-## 开发
+## 开发与测试
 
 ```bash
-make test      # go vet + 全部单测（含端到端钓鱼闭环，无需外部服务）
-make corpus    # 语料回环测试（语料文件不在仓库中时自动跳过）
+make test
+make corpus
 ```
+
+GitHub Actions 会对 Go 代码运行 vet / 单元测试，并构建 Docker 镜像。
 
 ## 客户端兼容与实现范围
 
 - 当前支持的客户端版本为 **4.0.25034**；其他版本尚未验证。
 - 目前已测试的钓法为：**手杆、简易沉底、简易路亚**。
-- 实现以客户端能够顺畅运行和完成基础玩法闭环为主要目标，没有复刻官服的手感、概率、生态或完整机制。实现概览、已知边界和检查项见 [文档索引](docs/README.md)。
-
-## 文档
-
-完整文档见 [docs/README.md](docs/README.md)，包括部署、客户端兼容性检查、架构、钓鱼机制、管理后台、个人中心、咖啡厅订单、商店目录和协议调试资料。
+- 实现以客户端能够顺畅运行和完成基础玩法闭环为主要目标，没有复刻官服的手感、概率、生态或完整机制。
 
 ## 许可
 
