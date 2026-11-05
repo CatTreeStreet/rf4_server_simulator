@@ -49,54 +49,17 @@
 - **管理后台** `http://127.0.0.1:9500/#admin`：直接内嵌在 launcher 中，不单独占端口
 - **启动游戏**：在统一控制中心保存 `rf4_x64.exe` 绝对路径，点击即可执行 `rf4_x64.exe -region CN`
 
-进阶（可选命令行）：
-
-```powershell
-bin\seed.exe       -config config.yaml
-bin\gameserver.exe -config config.yaml
-bin\gateway.exe    -config config.yaml
-```
-
 ## 架构
 
-```text
-游戏客户端（hosts 指向本机）
-   │ HTTPS :443 登录              TCP :9341 实时
-   ▼                              ▼
-┌─────────────── gateway ────────────────┐
-│ 登录应答（token 签发）/ TCP 接入 / 握手 │
-│ 帧编解码 / RC4 双向加解密 / ACK / 保活  │
-│ 重连接管（RC4 状态落库）                │
-└──────────────┬─────────────────────────┘
-                │ 内部隧道（明文 RPC 信封，PSK 握手）
-                ▼
-┌────────────── gameserver ──────────────┐
-│ 信封编解码 / 命令分发 / 推送守卫        │
-│ 钓鱼闭环 / 物品 / 商店 / 邮箱           │
-└──────────────┬─────────────────────────┘
-                ▼
-        data/rf4server.db（单文件，WAL）
-              + server_data/static.sqlite3（运行期只读 ATTACH）
-                ▲
-┌────────────── launcher :9500 ──────────┐
-│ 运行控制 + 内嵌管理后台 /admin/          │
-└─────────────────────────────────────────┘
-```
-
-- **gateway**：客户端唯一入口。持有 RC4 会话加密（密码流跨帧连续）、先 ACK 后转发、传输保活、断线重连接管。
-- **gameserver**：游戏逻辑。命令分发、推送守卫、钓鱼闭环、物品/商店/邮箱/技能；管理指令经共享 SQLite 队列消费。
-- **launcher / admin**：统一运行控制与 Control Deck 管理后台（JWT + 内嵌 SPA，无外部依赖）。管理 handler 直接挂载在 9500 的 `/admin/`。
+- **gateway**：客户端 HTTPS 登录和实时 TCP 接入，处理协议帧、RC4 会话、ACK、保活与重连。
+- **gameserver**：游戏逻辑、命令分发、钓鱼闭环、物品/商店/邮箱/技能。
+- **launcher / admin**：Windows 统一运行控制和内嵌管理后台。
 
 ## 客户端接入准备
 
 - **适用客户端版本：4.0.25034**；其他版本尚未验证。
-- **修改 hosts 把登录域名指向本机**（需管理员权限），添加：
-  ```text
-  127.0.0.1 api.rf4game.ru
-  127.0.0.1 api.rf4game.com
-  ```
-- 首次运行 gateway 会自动生成自签名证书 `certs/server.crt`；仅在本地测试环境中信任该证书。
-- 测完想回官服：把 hosts 里添加的行删掉即可。
+- 在本地测试环境中配置 hosts，将客户端登录域名指向服务端，并按项目部署指南信任本地自签名证书。
+- 测完想回官服：移除测试用 hosts 条目。
 
 ## 从源码运行或自行编译
 
@@ -106,52 +69,35 @@ bin\gateway.exe    -config config.yaml
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
-Windows 构建产物在 `bin/`。Linux 容器构建见下方 Docker 部署文档。
+## Docker 部署
 
-## Docker 部署（新增）
-
-已提供 Linux 容器构建文件和 Docker Compose 配置，适用于 VPS / NAS 的受控网络测试：
+默认采用 GHCR 镜像部署（镜像将在本 PR 合并到 main 并由 CI 发布后可拉取）：
 
 ```bash
-git clone -b docker/deploy https://github.com/CatTreeStreet/rf4_server_simulator.git
+git clone https://github.com/CatTreeStreet/rf4_server_simulator.git
 cd rf4_server_simulator
 cp config.example.yaml config.yaml
-# 编辑 config.yaml：替换密钥/密码，并设置客户端可访问的 gateway.advertise_host
-docker compose up -d --build
+# 编辑 config.yaml，替换默认密码/密钥，并设置 gateway.advertise_host
+docker compose pull
+docker compose up -d --no-build
 docker compose logs -f rf4-server
 ```
 
-默认映射 TCP 443（登录）和 TCP 9341（实时连接）。数据库与 TLS 证书使用 Docker 命名卷持久化。Docker 版本运行 seed、gameserver、gateway，不包含 Windows 托盘 launcher 和 9500 控制中心。请先阅读 [Docker 部署与安全说明](docs/docker.md)。
+默认映射 TCP 443（登录）和 TCP 9341（实时连接）。数据库与 TLS 证书使用 Docker 命名卷持久化。Docker 版运行 seed、gameserver、gateway，不包含 Windows 托盘 launcher 和 9500 控制中心。详细说明见 [Docker 部署文档](docs/docker.md)。
 
-## 配置
+## 配置、运行和测试
 
-- `config.example.yaml`：模板；复制为 `config.yaml` 后修改，实际配置不会入库。
-- 静态库：`sqlite.static_path`（默认 `server_data/static.sqlite3`）。
-- 环境变量覆盖：`RF4_SQLITE_PATH`、`RF4_SQLITE_STATIC_PATH`、`RF4_LOG_LEVEL`、`RF4_GAME_CLIENT_PATH` 等（见 `internal/config`）。
-
-## 运行
-
-```powershell
-bin\seed.exe       -config config.yaml
-bin\gameserver.exe -config config.yaml
-bin\gateway.exe    -config config.yaml
-```
-
-## 开发与测试
-
-```bash
-make test
-make corpus
-```
-
-GitHub Actions 会对 Go 代码运行 vet / 单元测试，并构建 Docker 镜像。
+- 配置模板：`config.example.yaml`；实际配置 `config.yaml` 不应提交到 Git。
+- 静态库：`server_data/static.sqlite3`。
+- Windows 命令行运行：`bin\seed.exe`、`bin\gameserver.exe`、`bin\gateway.exe`。
+- 测试：`make test`、`make corpus`。GitHub Actions 会运行 Go vet、单元测试和 Docker 构建。
 
 ## 客户端兼容与实现范围
 
 - 当前支持的客户端版本为 **4.0.25034**；其他版本尚未验证。
 - 目前已测试的钓法为：**手杆、简易沉底、简易路亚**。
-- 实现以客户端能够顺畅运行和完成基础玩法闭环为主要目标，没有复刻官服的手感、概率、生态或完整机制。
+- 本项目不提供游戏本体，也不宣称是完整、生产可用的官服复刻。
 
 ## 许可
 
-项目采用 **MIT 协议**（见 [LICENSE](LICENSE)）。本 README 中的项目定位与使用边界用于说明维护者立场，不改变许可证本身授予的权利与义务。
+项目采用 **MIT 协议**（见 `LICENSE`）。本 README 中的项目定位与使用边界用于说明维护者立场，不改变许可证本身授予的权利与义务。
