@@ -1,0 +1,35 @@
+name: Docker build and Go tests
+
+on:
+  push:
+    branches: [main, "docker/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Vet
+        run: go vet ./...
+      - name: Unit tests
+        run: go test ./...
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Linux Docker image
+        run: docker build --pull -t rf4-server-simulator:ci .
