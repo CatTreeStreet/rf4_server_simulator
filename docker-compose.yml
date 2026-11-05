@@ -1,9 +1,9 @@
 services:
   rf4-server:
+    image: ghcr.io/cattreestreet/rf4_server_simulator:latest
     build:
       context: .
       dockerfile: Dockerfile
-    image: ghcr.io/cattreestreet/rf4_server_simulator:latest
     container_name: rf4-server
     restart: unless-stopped
     init: true
