@@ -1,0 +1,93 @@
+name: Windows x64 build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-amd64:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Go from go.mod
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Build Windows executables
+        shell: pwsh
+        run: |
+          go version
+          ./build.ps1
+          $required = @(
+            "bin/launcher.exe",
+            "bin/gateway.exe",
+            "bin/gameserver.exe",
+            "bin/seed.exe",
+            "server_data/static.sqlite3",
+            "config.example.yaml"
+          )
+          foreach ($file in $required) {
+            if (-not (Test-Path $file)) {
+              throw "Required build/package file is missing: $file"
+            }
+          }
+
+      - name: Assemble portable package
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP "rf4_server_simulator_windows_amd64"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "bin" $stage -Recurse
+          Copy-Item "server_data" $stage -Recurse
+          Copy-Item "docs" $stage -Recurse
+          Copy-Item "README.md", "LICENSE", "config.example.yaml" $stage
+          @'
+          @echo off
+          chcp 65001 >nul
+          cd /d "%~dp0"
+          if not exist "config.yaml" (
+            copy "config.example.yaml" "config.yaml" >nul
+            echo 已生成 config.yaml，请先按快速开始说明检查配置。
+          )
+          start "" "%~dp0bin\launcher.exe"
+          timeout /t 3 /nobreak >nul
+          start "" "http://127.0.0.1:9500"
+          '@ | Set-Content -Encoding UTF8 (Join-Path $stage "启动服务器.cmd")
+          @'
+          RF4 本地服务端模拟器 - Windows x64
+          构建来源：CatTreeStreet/rf4_server_simulator 的 main 分支
+          客户端基线：4.0.25034
+
+          1. 将整个文件夹解压到固定目录，不要只拿走 bin 文件夹。
+          2. 双击“启动服务器.cmd”。首次启动会从 config.example.yaml 生成 config.yaml。
+          3. 控制中心：http://127.0.0.1:9500
+          4. 管理后台：http://127.0.0.1:9500/#admin
+
+          首次运行前请阅读 README.md 和 docs/deploy.md。请检查 config.yaml 中的
+          gateway.tunnel.psk、game.tunnel.psk、admin.jwt_secret、admin.password，
+          并将默认占位值替换为自己的随机密钥/密码。仅建议在本机或可信局域网测试，
+          不要将服务直接暴露到公网。
+
+          客户端接入需要按部署文档配置 hosts 和信任本地证书。不要分发 certs、
+          config.yaml、data 等包含本地密钥或用户数据的文件。
+          '@ | Set-Content -Encoding UTF8 (Join-Path $stage "快速开始.txt")
+          $zip = Join-Path $env:GITHUB_WORKSPACE "rf4_server_simulator-windows-amd64.zip"
+          Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zip -CompressionLevel Optimal
+
+      - name: Upload Windows x64 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: rf4_server_simulator-windows-amd64
+          path: rf4_server_simulator-windows-amd64.zip
+          if-no-files-found: error
+          retention-days: 30
