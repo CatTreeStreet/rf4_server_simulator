@@ -261,11 +261,32 @@ func (d *DB) ListAdminStores(ctx context.Context) ([]*AdminStoreView, error) {
 	if err != nil {
 		return nil, err
 	}
-	ids := make(map[string]struct{}, len(catalog.Stores)+len(recorded))
+	customRows, err := d.SQL.QueryContext(ctx, `SELECT DISTINCT store_id FROM shop_item_custom`)
+	if err != nil {
+		return nil, err
+	}
+	customStoreIDs := make([]string, 0)
+	for customRows.Next() {
+		var id string
+		if err := customRows.Scan(&id); err != nil {
+			_ = customRows.Close()
+			return nil, err
+		}
+		customStoreIDs = append(customStoreIDs, id)
+	}
+	if err := customRows.Err(); err != nil {
+		_ = customRows.Close()
+		return nil, err
+	}
+	_ = customRows.Close()
+	ids := make(map[string]struct{}, len(catalog.Stores)+len(recorded)+len(customStoreIDs))
 	for storeID := range catalog.Stores {
 		ids[storeID] = struct{}{}
 	}
 	for storeID := range recorded {
+		ids[storeID] = struct{}{}
+	}
+	for _, storeID := range customStoreIDs {
 		ids[storeID] = struct{}{}
 	}
 	storeIDs := make([]string, 0, len(ids))
@@ -278,6 +299,10 @@ func (d *DB) ListAdminStores(ctx context.Context) ([]*AdminStoreView, error) {
 	for _, storeID := range storeIDs {
 		base, source, def, known := resolveShopBase(storeID, catalog, recorded)
 		base, _, err = d.augmentShopShelf(ctx, def, base)
+		if err != nil {
+			return nil, err
+		}
+		base, err = d.addCustomShopRows(ctx, storeID, base)
 		if err != nil {
 			return nil, err
 		}

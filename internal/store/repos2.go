@@ -453,6 +453,9 @@ func (d *DB) GetItemDef(ctx context.Context, numericID int64) (*ItemDef, error) 
 	if err := row.Scan(&def.NumericID, &def.ItemID, &def.Category, &def.Kind, &def.Brand, &def.AttrsJSON); err != nil {
 		return nil, err
 	}
+	if err := d.applyGearDefinitionOverride(ctx, def); err != nil {
+		return nil, err
+	}
 	return def, nil
 }
 
@@ -464,6 +467,9 @@ func (d *DB) GetItemDefByItemID(ctx context.Context, itemID string) (*ItemDef, e
 		FROM item_def WHERE item_id=?`, itemID)
 	def := &ItemDef{}
 	if err := row.Scan(&def.NumericID, &def.ItemID, &def.Category, &def.Kind, &def.Brand, &def.AttrsJSON); err != nil {
+		return nil, err
+	}
+	if err := d.applyGearDefinitionOverride(ctx, def); err != nil {
 		return nil, err
 	}
 	return def, nil
@@ -486,6 +492,9 @@ func (d *DB) ListItemDefsByCategory(ctx context.Context, category int64) ([]*Ite
 		def := &ItemDef{}
 		if err := rows.Scan(&def.NumericID, &def.ItemID, &def.Category, &def.Kind,
 			&def.Brand, &def.AttrsJSON); err != nil {
+			return nil, err
+		}
+		if err := d.applyGearDefinitionOverride(ctx, def); err != nil {
 			return nil, err
 		}
 		out = append(out, def)

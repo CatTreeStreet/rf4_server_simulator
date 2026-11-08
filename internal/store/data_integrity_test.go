@@ -104,6 +104,9 @@ func TestTableOwnershipMatchesSchema(t *testing.T) {
 	if owner["item_def"] != "static" || owner["kv"] != "runtime" {
 		t.Fatalf("关键表归属错误: item_def=%q kv=%q", owner["item_def"], owner["kv"])
 	}
+	if owner["gear_def_override"] != "runtime" || owner["shop_item_custom"] != "runtime" {
+		t.Fatalf("装备定制表必须归属 runtime: gear_def_override=%q shop_item_custom=%q", owner["gear_def_override"], owner["shop_item_custom"])
+	}
 }
 
 func TestDataIntegrityMigrationCleansAndConstrains(t *testing.T) {
