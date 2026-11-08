@@ -454,8 +454,8 @@ func (d *DB) GetItemDef(ctx context.Context, numericID int64) (*ItemDef, error) 
 		return nil, err
 	}
 	if err := d.applyGearDefinitionOverride(ctx, def); err != nil {
-		return nil, err
-	}
+			return nil, err
+		}
 	return def, nil
 }
 
