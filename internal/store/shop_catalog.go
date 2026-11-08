@@ -319,7 +319,9 @@ func (d *DB) effectiveShopShelf(ctx context.Context, storeID string) (*shopShelf
 	if rows, ok := houses[storeID]; ok {
 		base := copyShopPrices(rows)
 		base, err = d.addCustomShopRows(ctx, storeID, base)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		var overrides map[string]shopOverrideValue
 		if len(base) > 0 {
 			overrides, err = d.loadShopOverrides(ctx, storeID)
@@ -347,7 +349,9 @@ func (d *DB) effectiveShopShelf(ctx context.Context, storeID string) (*shopShelf
 		return nil, err
 	}
 	base, err = d.addCustomShopRows(ctx, storeID, base)
-	if err != nil { return nil, err }
+	if err != nil {
+			return nil, err
+		}
 	overrides := map[string]shopOverrideValue{}
 	if len(base) > 0 {
 		overrides, err = d.loadShopOverrides(ctx, storeID)
