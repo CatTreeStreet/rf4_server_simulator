@@ -453,6 +453,7 @@ func (d *DB) GetItemDef(ctx context.Context, numericID int64) (*ItemDef, error) 
 	if err := row.Scan(&def.NumericID, &def.ItemID, &def.Category, &def.Kind, &def.Brand, &def.AttrsJSON); err != nil {
 		return nil, err
 	}
+	if err := d.applyGearDefinitionOverride(ctx, def); err != nil { return nil, err }
 	return def, nil
 }
 
@@ -466,6 +467,7 @@ func (d *DB) GetItemDefByItemID(ctx context.Context, itemID string) (*ItemDef, e
 	if err := row.Scan(&def.NumericID, &def.ItemID, &def.Category, &def.Kind, &def.Brand, &def.AttrsJSON); err != nil {
 		return nil, err
 	}
+	if err := d.applyGearDefinitionOverride(ctx, def); err != nil { return nil, err }
 	return def, nil
 }
 
