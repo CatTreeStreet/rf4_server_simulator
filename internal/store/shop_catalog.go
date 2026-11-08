@@ -350,8 +350,8 @@ func (d *DB) effectiveShopShelf(ctx context.Context, storeID string) (*shopShelf
 	}
 	base, err = d.addCustomShopRows(ctx, storeID, base)
 	if err != nil {
-			return nil, err
-		}
+		return nil, err
+	}
 	overrides := map[string]shopOverrideValue{}
 	if len(base) > 0 {
 		overrides, err = d.loadShopOverrides(ctx, storeID)
