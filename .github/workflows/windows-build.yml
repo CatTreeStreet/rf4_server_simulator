@@ -2,7 +2,7 @@ name: Windows x64 build
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/equipment-customization-admin]
   workflow_dispatch:
 
 permissions:
@@ -15,7 +15,7 @@ jobs:
       - name: Checkout latest main
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.ref }}
 
       - name: Set up Go from go.mod
         uses: actions/setup-go@v5
