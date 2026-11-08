@@ -262,10 +262,22 @@ func (d *DB) ListAdminStores(ctx context.Context) ([]*AdminStoreView, error) {
 		return nil, err
 	}
 	customRows, err := d.SQL.QueryContext(ctx, `SELECT DISTINCT store_id FROM shop_item_custom`)
-	if err != nil { return nil, err }
-	customStoreIDs := make([]string,0)
-	for customRows.Next() { var id string; if err:=customRows.Scan(&id); err!=nil { _=customRows.Close(); return nil,err }; customStoreIDs=append(customStoreIDs,id) }
-	if err:=customRows.Err(); err!=nil { _=customRows.Close(); return nil,err }
+	if err != nil {
+			return nil, err
+		}
+	customStoreIDs := make([]string, 0)
+	for customRows.Next() {
+		var id string
+		if err := customRows.Scan(&id); err != nil {
+			_ = customRows.Close()
+			return nil, err
+		}
+		customStoreIDs = append(customStoreIDs, id)
+	}
+	if err := customRows.Err(); err != nil {
+		_ = customRows.Close()
+		return nil, err
+	}
 	_ = customRows.Close()
 	ids := make(map[string]struct{}, len(catalog.Stores)+len(recorded)+len(customStoreIDs))
 	for storeID := range catalog.Stores {
@@ -274,7 +286,9 @@ func (d *DB) ListAdminStores(ctx context.Context) ([]*AdminStoreView, error) {
 	for storeID := range recorded {
 		ids[storeID] = struct{}{}
 	}
-	for _, storeID := range customStoreIDs { ids[storeID] = struct{}{} }
+	for _, storeID := range customStoreIDs {
+		ids[storeID] = struct{}{}
+	}
 	storeIDs := make([]string, 0, len(ids))
 	for storeID := range ids {
 		storeIDs = append(storeIDs, storeID)
@@ -289,7 +303,9 @@ func (d *DB) ListAdminStores(ctx context.Context) ([]*AdminStoreView, error) {
 			return nil, err
 		}
 		base, err = d.addCustomShopRows(ctx, storeID, base)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		overrides := allOverrides[storeID]
 		effective := applyShopOverrides(base, overrides)
 		baseIDs := make(map[string]struct{}, len(base))
