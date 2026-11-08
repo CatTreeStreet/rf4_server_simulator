@@ -263,8 +263,8 @@ func (d *DB) ListAdminStores(ctx context.Context) ([]*AdminStoreView, error) {
 	}
 	customRows, err := d.SQL.QueryContext(ctx, `SELECT DISTINCT store_id FROM shop_item_custom`)
 	if err != nil {
-			return nil, err
-		}
+		return nil, err
+	}
 	customStoreIDs := make([]string, 0)
 	for customRows.Next() {
 		var id string
