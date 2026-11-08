@@ -454,8 +454,8 @@ func (d *DB) GetItemDef(ctx context.Context, numericID int64) (*ItemDef, error) 
 		return nil, err
 	}
 	if err := d.applyGearDefinitionOverride(ctx, def); err != nil {
-			return nil, err
-		}
+		return nil, err
+	}
 	return def, nil
 }
 
@@ -495,8 +495,8 @@ func (d *DB) ListItemDefsByCategory(ctx context.Context, category int64) ([]*Ite
 			return nil, err
 		}
 		if err := d.applyGearDefinitionOverride(ctx, def); err != nil {
-		return nil, err
-	}
+			return nil, err
+		}
 		out = append(out, def)
 	}
 	return out, rows.Err()
