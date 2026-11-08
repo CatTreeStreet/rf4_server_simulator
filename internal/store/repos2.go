@@ -490,6 +490,7 @@ func (d *DB) ListItemDefsByCategory(ctx context.Context, category int64) ([]*Ite
 			&def.Brand, &def.AttrsJSON); err != nil {
 			return nil, err
 		}
+		if err := d.applyGearDefinitionOverride(ctx, def); err != nil { return nil, err }
 		out = append(out, def)
 	}
 	return out, rows.Err()
